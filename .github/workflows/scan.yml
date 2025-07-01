@@ -5,60 +5,25 @@ on:
     - cron: "0/1 * * * *"
   workflow_dispatch:
 
-
 jobs:
   sync:
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4Add commentMore actions
         with:
-          ref: ${{ github.ref_name }}
+          ref: ${{ github.head_ref }}
 
-      - name: Setup environment
-        run: |
-          echo "DAY=$(date -u '+%Y-%m-%d')" >> $GITHUB_ENV
+      - run: |
+          export NOW=$(date '+%Y-%m-%d-%H-%M-%S')
+          export DAY=$(date '+%Y-%m-%d')
+          export DAY_1d=$(date -d '1 days ago' '+%Y-%m-%d')
+          export DAY_3d=$(date -d '3 days ago' '+%Y-%m-%d')
+          export DAY_7d=$(date -d '7 days ago' '+%Y-%m-%d')
           mkdir -p data/github/$DAY
-          mkdir -p data/github/$DAY/readmes
-      - name: Fetch GitHub repositories
-        run: |
-          periods=(1 3 7)
-          for days in "${periods[@]}"; do
-            file="data/github/$DAY/repo_${days}d_stars.json"
-            created_filter="created:>$(date -u -d "$days days ago" '+%Y-%m-%d')"
-            
-            curl -sS -G "https://api.github.com/search/repositories" \
-              --data-urlencode "sort=stars" \
-              --data-urlencode "q=$created_filter" \
-              -o "$file"
-          done
-      - name: Download README files
-        run: |
-          # Установка jq для обработки JSON
-          sudo apt-get install -y jq
-          # Обработка каждого файла с репозиториями
-          for file in data/github/$DAY/repo_*.json; do
-            # Извлечение списка репозиториев
-            repos=$(jq -r '.items[].full_name' "$file")
-            
-            for repo in $repos; do
-              # Создание безопасного имени директории
-              dir_name="${repo//\//_}"  # Замена / на _
-              output_dir="data/github/$DAY/readmes/$dir_name"
-              mkdir -p "$output_dir"
-              
-              # Скачивание README
-              curl -sS -L \
-                -H "Accept: application/vnd.github.v3.raw" \
-                -o "$output_dir/README.md" \
-                "https://api.github.com/repos/$repo/readme" || echo "README not found for $repo"
-            done
-          done
-      - name: Auto-commit changes
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "Update GitHub data for ${{ env.DAY }}"
-          commit_user_name: "GitHub Actions"
-          commit_user_email: "actions@users.noreply.github.com"
+          curl -G https://api.github.com/search/repositories --data-urlencode "sort=stars" --data-urlencode "q=created:>$DAY_1d" -o data/github/$DAY/repo_1d_stars.$NOW.json
+          curl -G https://api.github.com/search/repositories --data-urlencode "sort=stars" --data-urlencode "q=created:>$DAY_3d" -o data/github/$DAY/repo_3d_stars.$NOW.json
+          curl -G https://api.github.com/search/repositories --data-urlencode "sort=stars" --data-urlencode "q=created:>$DAY_7d" -o data/github/$DAY/repo_7d_stars.$NOW.json
+
+      - uses: stefanzweifel/git-auto-commit-action@v5
